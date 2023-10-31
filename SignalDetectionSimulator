@@ -1,1 +1,138 @@
+reset 
+R
+
+library(shiny)
+
+ui <- fluidPage(
+  titlePanel('Signal Detection Simulator'),
+
+  tags$div(
+    "This application simulates outcomes of mass screenings for low-prevalence problems (MaSLoPP) to help people correct for common cognitive distortions in understanding their effects. It’s based on",
+    tags$a(href="http://andrei.gorea.free.fr/Teaching_fichiers/SDT%20and%20Psytchophysics.pdf", "signal detection theory (Green and Swets 1966)"),
+    ", which originated in U.S. Army research to measure radar operators’ performance. The “signal” refers to whatever the test is trying to detect. It could be the presence of a disease, crime, misinformation, plagiarism, or some other low-prevalence thing that we might want to screen for across diverse contexts like health, security, information, and education. One of the common cognitive biases that can distort understanding of the effects of this type of screening is known as base rate blindness, base rate bias, or the base rate fallacy",
+    tags$a(href="https://en.wikipedia.org/wiki/Base_rate_fallacy", "base rate fallacy."),
+    tags$br(),
+    tags$br(),
+    "Base rate bias involves ignoring how the prevalence of a problem matters. When something is very rare, even in a highly accurate mass screening, the common (false positives) overwhelms the rare (true positives). When secondary screening can sort false from true positives without substantial costs including possible harm, and with a high degree of certainty, this may be fine. But when such screening does not exist, as in most security screenings, MaSLoPP may cause massive, preventable societal harm, mostly to large numbers of false positives. Examples of MaSLoPP under these conditions include “stop and frisk” policing, automated plagiarism and misinformation checks, and many medical screenings.",
+    tags$br(),
+    tags$br(),
+    "This simulator gives you resources to:",
+    tags$ul(
+      tags$li("Avoid common misunderstandings of mass screenings for low-prevalence problems."),
+      tags$li("Visualize four types of outcomes, instead of only focusing on a single accuracy number for a given test or treatment. This applies the probability theory rule", 
+              tags$a(href="https://en.wikipedia.org/wiki/Bayes%27_theorem", "Bayes’ theorem.")),
+      tags$li("Understand how different specifications affect screening outcomes."),
+      tags$li("Apply the decision science insight that estimating outcomes in terms of frequencies (e.g., body counts) instead of probabilities (percents) helps people make better Bayesian statistical inferences intuitively", 
+              tags$a(href="https://psycnet.apa.org/record/1996-10283-001", "(Gigerenzer and Hoffrage 1995)."))
+    ),
+    tags$br()
+  ),
+
+  fluidRow(
+    column(6, 
+           h3("Inputs"),
+           numericInput("population", "Population:", value = 1000, min = 1, max = 1e6),
+           tags$div(
+               numericInput("baseRateNum", "Base Rate (Numerator):", value = 1)
+           ),
+           numericInput("baseRateDenom", "Base Rate (Denominator):", value = 10000),
+           tags$br(),
+           "Base Rate: The true occurrence rate (population-level incidence) of the condition/problem being screened.",
+           tags$br(),
+           tags$br(),
+           tags$div(
+               sliderInput("testAccuracy", "Test Accuracy:", min = 0.5, max = 1, value = 0.75),
+               "Accuracy: In the signal detection context, accuracy has a more specific meaning than it does in general use. Here, it refers to the correct test results in the whole population tested: (True Positives + True Negatives) / Total. This definition of accuracy is usually not the best way to measure accuracy as we normally think of it in the context of predictive analytics, because of the", 
+               tags$a(href="https://en.wikipedia.org/wiki/Accuracy_paradox", "Accuracy Paradox"), 
+               ".",
+               tags$br(),
+               tags$br(),
+               sliderInput("detectionThreshold", "Detection Threshold:", min = 0.1, max = 0.9, value = 0.5),
+               tags$div("Detection Threshold: the test’s capacity to detect the signal at a particular performance level. The true positive rate (",
+                        tags$a(href="https://en.wikipedia.org/wiki/Sensitivity_and_specificity", "sensitivity"),
+                        ") is the reciprocal of the threshold value."),
+               tags$br()
+           )
+    ),
+
+    column(6, 
+           actionButton("generate", "Generate Results"),
+           tags$br()   
+    )
+  )    
+)
+
+  
+  tags$br()
+  tags$br()
+  
+  tableOutput("resultsTable")
+  
+  tags$br()
+  tags$br()
+
+  tags$h4("Results Summary")
+  verbatimTextOutput("summaryText", placeholder = TRUE)
+  
+  tags$br()
+  tags$br()
+  
+ tags$div(
+  tags$h4("Additional considerations and resources"),
+  "You may also want to consider additional factors that commonly distort these outcome estimates:",
+  tags$ul(
+    tags$li("Inventors often have incentives to inflate accuracy rates that cannot then be validated under field conditions to check this bias."),
+    tags$li("Dedicated attackers may game the system, resulting in deflationary estimated false negatives."),
+    tags$li("Secondary screenings may unintentionally, causally influence outcomes; they may do harm.")
+  ),
+  tags$h4("Real-world examples of mass screenings for low-prevalence problems:"),
+  tags$ul(
+    tags$li(tags$a(href = "https://nap.nationalacademies.org/read/10420/chapter/2#5", "National Lab scientist polygraph screening")),
+    tags$li(tags$a(href = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2662630/", "Newborn screening")),
+    tags$li(tags$a(href = "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4055484/", "Screening mammography"))
+  ),
+  tags$h4("Advanced resources:"),
+tags$ul(
+  tags$li(tags$a(href = "https://xcelab.net/rm/statistical-rethinking/", "Statistical Rethinking, by Richard McElreath")),
+  tags$li(tags$a(href = "https://academic.oup.com/aje/article/186/6/639/3886035", "The Need for Cognitive Science in Methodology, by Sander Greenland")),
+tags$li(tags$a(href = "https://larspsyll.wordpress.com/2023/08/17/sander-greenland-on-cognitive-biases-in-science/", "There’s Not Much Science in Science, by Sander Greenland")),
+    tags$li(tags$a(href = "https://onlinelibrary.wiley.com/doi/epdf/10.1111/sjos.12645", "Connecting simple and precise P-values to complex and ambiguous realities,” by Sander Greenland))
+  )
+ )
+)
+
+server <- function(input, output) {
+    
+    baseRate <- reactive({ 
+        input$baseRateNum / input$baseRateDenom 
+    })
+    
+    sensitivity <- reactive({ 
+        1 - input$detectionThreshold 
+    })
+    
+    P_B <- reactive({
+        baseRate() * sensitivity() + (1 - baseRate()) * (1 - ((input$testAccuracy * input$population - baseRate() * sensitivity() * input$population) / (input$population - baseRate() * input$population)))
+    })
+    
+    posteriorProb <- reactive({
+        (sensitivity() * baseRate()) / P_B()
+    })
+      
+    output$resultsTable <- renderTable({
+        data.frame(
+            Parameter = c("Population", "Base Rate", "Sensitivity", "P(B)", "Posterior Probability"),
+            Value = c(input$population, baseRate(), sensitivity(), P_B(), posteriorProb())
+        )
+    })
+    
+    output$summaryText <- renderText({
+        paste0("Given a detection threshold of ", input$detectionThreshold,
+               ", the sensitivity is ", round(sensitivity(), 2), 
+               ". With a base rate of ", baseRate(), 
+               ", the probability of having the condition given a positive test result is ", round(posteriorProb(), 2), ".")
+    })
+}
+
+shinyApp(ui, server)
 
